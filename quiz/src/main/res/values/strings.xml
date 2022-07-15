@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="error_network">Error: network request failed</string>
+    <string name="quiz">Quiz</string>
+    <string name="continue_button">Continue</string>
+    <string name="answer_correct">Correct</string>
+    <string name="answer_wrong">Wrong</string>
+</resources>
