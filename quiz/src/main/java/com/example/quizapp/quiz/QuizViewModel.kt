@@ -37,8 +37,7 @@ class QuizViewModel : ViewModel() {
     }
 
     override fun onCleared() {
-        timer?.cancel()
-        timer = null
+        stopTime()
     }
 
     fun nextQuestion() {
@@ -49,6 +48,7 @@ class QuizViewModel : ViewModel() {
     }
 
     fun selectChoice(position: Int) {
+        stopTime()
         _uiStateFlow.value.apply {
             if (currentQuestionIndex != selectedAnswers.size) return
             _uiStateFlow.value = copy(selectedAnswers = selectedAnswers + position)
@@ -56,7 +56,7 @@ class QuizViewModel : ViewModel() {
     }
 
     private fun restartTime() {
-        timer?.cancel()
+        stopTime()
         _uiStateFlow.value.apply {
             _uiStateFlow.value = copy(timeLeft = quizUiState?.questions?.get(currentQuestionIndex)?.time ?: -1)
         }
@@ -69,11 +69,16 @@ class QuizViewModel : ViewModel() {
         }
     }
 
+    private fun stopTime() {
+        timer?.cancel()
+    }
+
     fun updateTimeMinusSecond() {
         _uiStateFlow.value.apply {
             if (timeLeft > 0) {
                 _uiStateFlow.value = copy(timeLeft = timeLeft - 10)
             } else {
+                selectChoice(-1)
                 timer?.cancel()
             }
         }

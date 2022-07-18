@@ -9,8 +9,10 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.text.HtmlCompat
 import androidx.core.view.setMargins
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -26,6 +28,7 @@ import com.example.quizapp.quiz.model.QuestionUiState
 import com.example.quizapp.quiz.model.QuizScreenUiState
 import com.example.quizapp.quiz.model.StringResource
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 class QuizFragment : Fragment() {
 
@@ -64,16 +67,20 @@ class QuizFragment : Fragment() {
             binding.quizLoadingProgressBar.visibility = View.GONE
             binding.quizContainerGroup.visibility = View.VISIBLE
             val questionIndex = quizScreenUiState.currentQuestionIndex
-            val selectedChoice = quizScreenUiState.selectedAnswers.getOrElse(questionIndex) { -1 }
+            val selectedChoice = quizScreenUiState.selectedAnswers.getOrElse(questionIndex) { ANSWER_NOT_SELECTED }
             binding.progressCounterTextView.text = "${questionIndex+1}/${quizScreenUiState.quizUiState.questions.size}"
-            binding.continueButton.visibility = if (
-                quizScreenUiState.quizUiState.questions.size - 1 > quizScreenUiState.currentQuestionIndex &&
-                selectedChoice > -1
-                    ) View.VISIBLE else View.INVISIBLE
+            if (quizScreenUiState.quizUiState.questions.size - 1 > quizScreenUiState.currentQuestionIndex && selectedChoice > ANSWER_NOT_SELECTED) {
+                binding.continueButton.visibility = View.VISIBLE
+            } else {
+                binding.continueButton.visibility = View.INVISIBLE
+                binding.timeTextView.updateLayoutParams<ConstraintLayout.LayoutParams> {
+                    startToStart = ConstraintLayout.LayoutParams.UNSET
+                    endToEnd = binding.questionProgressBar.id
+                }
+            }
             binding.continueButton.setOnClickListener {
                 viewModel.nextQuestion()
             }
-
             val currentQuestion = quizScreenUiState.quizUiState.questions[questionIndex]
             setupQuestionUI(currentQuestion, selectedChoice)
             setupTimer(currentQuestion.time, quizScreenUiState.timeLeft)
@@ -84,20 +91,33 @@ class QuizFragment : Fragment() {
     }
 
     private fun setupQuestionUI(questionUiState: QuestionUiState, selectedChoice: Int) {
-        val choiceSelected = selectedChoice > -1
+        val choiceSelected = selectedChoice > ANSWER_NOT_SELECTED
         Glide.with(this)
             .load(questionUiState.image)
             .apply(RequestOptions.bitmapTransform(RoundedCorners(16)))
             .into(binding.quizImageView)
         binding.questionTextView.text =  HtmlCompat.fromHtml(questionUiState.question, HtmlCompat.FROM_HTML_MODE_COMPACT)
-        binding.questionProgressBar.visibility = if (choiceSelected) View.GONE else View.VISIBLE
+        binding.questionProgressGroup.visibility = if (choiceSelected) View.GONE else View.VISIBLE
         setupChoices(questionUiState.choices, selectedChoice)
         setupAnswerStatus(questionUiState.choices.getOrNull(selectedChoice))
     }
 
     private fun setupTimer(totalTime: Int, remainingTime: Int) {
-        binding.questionProgressBar.max = totalTime
-        binding.questionProgressBar.progress = remainingTime
+        binding.timeTextView.text = "${(remainingTime / 1000f).roundToInt()}"
+        if (binding.questionProgressBar.max == 0 && binding.questionProgressBar.width > 0) {
+            binding.questionProgressBar.max = binding.questionProgressBar.width
+        } else if (binding.questionProgressBar.max == 0) return
+        val scaleFactor = remainingTime/totalTime.toFloat()
+        binding.questionProgressBar.updateLayoutParams<ConstraintLayout.LayoutParams> { width =(binding.questionProgressBar.max * scaleFactor).toInt() }
+        binding.timeTextView.updateLayoutParams<ConstraintLayout.LayoutParams> {
+            if (binding.questionProgressBar.width > binding.timeTextView.width) {
+                startToStart = ConstraintLayout.LayoutParams.UNSET
+                endToEnd = binding.questionProgressBar.id
+            } else {
+                startToStart = binding.questionProgressBar.id
+                endToEnd = ConstraintLayout.LayoutParams.UNSET
+            }
+        }
     }
 
     private fun setupChoices(choices: List<ChoiceUiState>, selectedChoice: Int) {
@@ -145,7 +165,7 @@ class QuizFragment : Fragment() {
             val bottom = 0
             layoutParams.setMargins(left, top, right, bottom)
         }
-        val color = if (selectedChoice > -1) {
+        val color = if (selectedChoice > ANSWER_NOT_SELECTED) {
             if (choices[position].correct) {
                 Color.parseColor("#66BF39")
             } else if (selectedChoice == position && !choices[selectedChoice].correct) {
@@ -171,7 +191,7 @@ class QuizFragment : Fragment() {
         selectedChoice: Int
     ) {
         val layoutParams = itemQuizButtonBinding.iconImageView.layoutParams as FrameLayout.LayoutParams
-        if (selectedChoice > -1) {
+        if (selectedChoice > ANSWER_NOT_SELECTED) {
             layoutParams.setMargins(0)
             layoutParams.gravity = Gravity.TOP or if (position.mod(2) == 0) Gravity.START else Gravity.END
             val icon = if (choices[position].correct) R.drawable.correct else R.drawable.wrong
@@ -207,5 +227,9 @@ class QuizFragment : Fragment() {
         val errorMessage = errorMessages.firstOrNull() ?: return
         Toast.makeText(requireContext(), errorMessage.resolve(requireContext()), Toast.LENGTH_SHORT).show()
         viewModel.setErrorMessageShown(errorMessage)
+    }
+
+    companion object {
+        const val ANSWER_NOT_SELECTED = -2
     }
 }
